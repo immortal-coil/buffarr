@@ -1,0 +1,103 @@
+{{define "join.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join the game cache - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+  {{$ip := or .CacheIP "the cache IP"}}
+  <div style="max-width:760px;margin:0 auto;padding:28px 18px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+      <img src="/static/logo.png" alt="" width="40" height="40" style="border-radius:9px;display:block">
+      <h1 style="margin:0">Join the game cache</h1>
+    </div>
+
+    <div class="card">
+      <p>Point your device's DNS at the cache server and your game downloads are
+      served from this local network at full speed instead of the internet. Nothing
+      else changes: install and update games exactly as you normally would.</p>
+      {{if .CacheIP}}
+      <p>Set your device's DNS server to:</p>
+      <div style="font-size:30px;font-weight:700;letter-spacing:.04em;text-align:center;padding:14px;margin:6px 0 2px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)">{{.CacheIP}}</div>
+      {{else}}
+      <p class="note">Ask the host for the cache server's IP address, then set it as
+      your device's DNS server using the steps below.</p>
+      {{end}}
+    </div>
+
+    {{if .Games}}
+    <div class="card">
+      <div class="card-title">In the cache ({{len .Games}})</div>
+      <p class="note">These are ready to install at full LAN speed once your DNS is set.</p>
+      <div class="poster-grid">
+        {{range .Games}}
+        <div class="poster-card">
+          <div class="poster-art">
+            <img class="poster-img" loading="lazy" src="/posters/{{.Platform}}/{{.GameKey}}" alt="" onerror="this.remove()">
+            <span class="poster-fallback">{{.Name}}</span>
+          </div>
+          <div class="poster-meta">
+            <div class="poster-title" title="{{.Name}}">{{.Name}}</div>
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
+    <div class="card">
+      <div class="card-title">How to set your DNS</div>
+      <div class="faq">
+
+        <details class="faq-item">
+          <summary>Windows 11 / 10</summary>
+          <div class="faq-answer">
+            Settings → Network &amp; Internet → your Wi-Fi or Ethernet → <strong>Edit</strong>
+            next to "DNS server assignment" → <strong>Manual</strong> → turn on
+            <strong>IPv4</strong> → set <strong>Preferred DNS</strong> to
+            <code>{{$ip}}</code> → Save.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>macOS</summary>
+          <div class="faq-answer">
+            System Settings → Network → your connection → <strong>Details…</strong> →
+            <strong>DNS</strong> → click <strong>+</strong> and add <code>{{$ip}}</code> at
+            the top of the list → OK → Apply.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Steam Deck</summary>
+          <div class="faq-answer">
+            Switch to Desktop Mode → network icon → your connection →
+            <strong>Settings</strong> → <strong>IPv4</strong> → Method
+            "Automatic (Addresses only)" → <strong>DNS Servers</strong>
+            <code>{{$ip}}</code> → Apply.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>PlayStation / Xbox / Switch</summary>
+          <div class="faq-answer">
+            In the console's network settings, set up the connection manually and set
+            <strong>DNS</strong> to <strong>Manual</strong>: Primary DNS
+            <code>{{$ip}}</code>, leave Secondary blank (or your router). IP and gateway
+            can stay automatic.
+          </div>
+        </details>
+
+      </div>
+    </div>
+
+    <p class="note" style="text-align:center;margin-top:18px">If this page loaded,
+    you can reach the cache server. Powered by Buffarr.</p>
+  </div>
+</body>
+</html>
+{{end}}

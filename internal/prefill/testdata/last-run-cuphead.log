@@ -1,0 +1,38 @@
+[2:55:06 AM] Starting login!
+Connecting to Steam...
+[2:55:07 AM] Connected to Steam!
+Logging in to Steam...
+[2:55:07 AM] Logged into Steam
+Retrieving owned apps...
+[2:55:07 AM] Steam session initialization complete!              01.2641
+
+────────────────────────────────────────────────────────────────────────────────
+Retrieving latest App metadata...
+
+[2:55:08 AM] Starting Cuphead
+ Getting available CDN Servers... 
+Fetching depot manifests...
+[2:55:08 AM]    An unexpected error (System.Net.Http.HttpRequestException) 
+occurred while downloading manifests.  Retrying...
+[2:55:11 AM] Downloading 3.23 GiB
+Detecting Lancache server...
+[2:55:11 AM] Detected Lancache server at lancache.steamcontent.com [192.168.1.10
+]
+Downloading..: 1%
+Downloading..: 25%
+Downloading..: 51%
+Downloading..: 75%
+Downloading..: 96%
+Downloading..: 98%
+[2:55:57 AM] Finished in 45.6576 - 606.82 Mbit/s
+
+[2:55:57 AM] Prefill complete!
+────────────────────────────────────────────────────────────────────────────────
+  Prefilled 1 apps totaling 3.23 GiB in 50.9042 
+                                                
+   Updated │ Up To Date                         
+  ━━━━━━━━━┿━━━━━━━━━━━━                        
+      1    │     0                              
+                                                
+Disconnecting
+[2:55:57 AM] Disconnected from Steam!

@@ -1,0 +1,22 @@
+{{define "capacity_gauge"}}
+{{if .CacheTotalBytes}}
+<div class="gauge" data-total="{{.CacheTotalBytes}}" data-used="{{.CacheUsedBytes}}" data-free="{{.CacheFreeBytes}}" data-cap="{{if .CacheCapBytes}}{{.CacheCapBytes}}{{else}}0{{end}}">
+  <div class="meter-head">
+    <div class="meter-pct">{{.CacheUsedPct}}<span>%</span></div>
+    <div class="meter-bytes"><b>{{humanBytes .CacheUsedBytes}}</b> used<br>of {{humanBytes .CacheTotalBytes}}{{if .CacheCapBytes}} &middot; cap {{humanBytes .CacheCapBytes}}{{end}}</div>
+  </div>
+  <div class="gauge-bar">
+    <div class="gauge-track">
+      <div class="gauge-seg gauge-seg--locked" style="width:{{.CacheLockedPct}}%"></div>
+      <div class="gauge-seg gauge-seg--evictable" style="width:{{.CacheEvictablePct}}%"></div>
+    </div>
+    {{if .CacheCapMarkPct}}<div class="gauge-cap" style="left:{{.CacheCapMarkPct}}%" title="Cache cap: {{humanBytes .CacheCapBytes}}"></div>{{end}}
+  </div>
+  <div class="gauge-legend">
+    <span class="gauge-key gauge-key--locked">Locked <b class="mono">{{humanBytes .CacheLockedBytes}}</b></span>
+    <span class="gauge-key gauge-key--evictable">Evictable <b class="mono">{{humanBytes .CacheEvictableBytes}}</b></span>
+    <span class="gauge-key gauge-key--free">Free <b class="mono">{{humanBytes .CacheFreeBytes}}</b></span>
+  </div>
+</div>
+{{end}}
+{{end}}

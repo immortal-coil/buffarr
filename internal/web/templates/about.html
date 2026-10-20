@@ -1,0 +1,151 @@
+{{define "about.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>About - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body>
+  {{template "nav" .}}
+  <div id="toast"></div>
+  <h1>About Buffarr</h1>
+  <p class="subtitle">What it is, and answers to common questions</p>
+  <p class="note">Build <b class="mono">{{buildVersion}}</b></p>
+
+  <div class="card">
+    <p>Buffarr is a self-hosted manager for your LAN game-download cache: a
+    browsable library of what's cached, per-game disk accounting, one-click
+    protection and deletion, and on-demand preloading of games you own. It is
+    inspired by <a href="https://lancache.net/" target="_blank" rel="noopener">lancache</a>
+    and adds the management layer on top.</p>
+    <p class="note">Independent and unofficial, provided for educational and
+    personal use. Not affiliated with, endorsed by, or sponsored by Valve, Steam,
+    or any other game platform. Released under the MIT License.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Frequently asked questions</div>
+    <div class="faq">
+
+      <details class="faq-item">
+        <summary>What is Buffarr, and how is it different from lancache?</summary>
+        <div class="faq-answer">
+          Lancache caches game downloads on your LAN, so a game is pulled from the
+          internet once and then served to every other machine at local-network
+          speed. Buffarr runs that same caching architecture and adds a management
+          layer on top: a poster-grid library of what's actually cached, per-game
+          disk usage, the ability to lock or delete individual games, and on-demand
+          preloading. Lancache gives you the cache; Buffarr lets you see and control
+          what's in it.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Why not just use Steam's Local Network Game Transfers?</summary>
+        <div class="faq-answer">
+          Steam's built-in transfer feature covers the simple case well: one PC
+          has the game installed, another pulls it at LAN speed, zero setup. Use
+          it if that's all you need. Buffarr covers what it can't: it needs no
+          peer PC that has the game installed and online, it can preload games
+          nobody has installed yet ahead of a LAN party, it keeps games cached
+          until you evict them rather than losing them on uninstall, it serves
+          consoles and other launchers rather than Steam PC-to-PC only, and it
+          adds management on top (visibility, locks, size caps, per-game
+          deletion). Two roommates with big drives should use the Steam feature;
+          Buffarr is for the dedicated-server case.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How does Buffarr know which games are cached?</summary>
+        <div class="faq-answer">
+          It doesn't read the cache files directly, since they're stored under opaque
+          hashed names. Instead it continuously tails the cache's access log,
+          identifies which game each request belongs to, mapping Steam depot IDs to
+          app IDs, and keeps a running per-game tally in a small database.
+          A background pass reconciles those totals against what's actually on disk.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Why is a game's cached size smaller than what Steam shows?</summary>
+        <div class="faq-answer">
+          The size Buffarr reports is the <strong>compressed download</strong> size:
+          the bytes that travel over the CDN and land in the cache. Steam's store and
+          library show the <strong>installed</strong> size, which is larger because the
+          game is decompressed on disk after it downloads. A title Steam lists as
+          50&nbsp;GB installed might appear as roughly 30&nbsp;GB cached here.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Why did a game downloaded through Steam show a smaller cached size than one preloaded through Buffarr?</summary>
+        <div class="faq-answer">
+          Buffarr's per-game size comes from tailing nginx's access log, not from
+          reading the cache directly. Usually this is Steam itself, not a tailer
+          bug: Steam skips re-fetching chunks it can already validate locally, such
+          as a shared redistributable depot or leftovers from a prior partial install,
+          so a first-time install through Steam can legitimately pull fewer bytes than
+          the depot's full size. Preloading through Buffarr always forces a full
+          fetch of every chunk, so it's the more reliable number if you want a
+          title's true footprint. Either way, deleting a game still cleans up
+          correctly: it purges every depot the catalog tracked, plus, for an
+          identified Steam title, every depot Steam's own API lists for that app,
+          so bytes the tailer never logged for any reason don't get left behind.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What does Lock do?</summary>
+        <div class="faq-answer">
+          Locking a game protects it from removal. When you set a maximum cache size,
+          Buffarr keeps the cache under that limit by evicting the least-recently-used
+          <em>unlocked</em> games first. Locked games are never auto-evicted, even if
+          that means going over the limit, since locking always wins, and a locked
+          game can't be deleted until you unlock it.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>A preload reported success, but the Library is still empty. Why?</summary>
+        <div class="faq-answer">
+          Almost always nginx's HTTPS SNI passthrough is not working. Steam
+          fetches its depot <em>manifests</em> over HTTPS, and without that passthrough
+          a preload completes but caches close to zero bytes. If a preload reports
+          success yet nothing lands in the Library, confirm nginx is healthy first.
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How does Buffarr use Steam and my account?</summary>
+        <div class="faq-answer">
+          Buffarr is self-hosted and talks only to Steam's own services:
+          <ul>
+            <li><strong>Sign-in</strong> uses Steam OpenID. You log in at Steam, and
+            Buffarr only ever learns your public SteamID, never your password. Only
+            the SteamID you configure as the operator is allowed in.</li>
+            <li><strong>The Steam Web API key</strong> is used read-only, to list the
+            games you own for the Preload page and to confirm ownership before a
+            preload. It reads nothing else and changes nothing.</li>
+            <li><strong>Cover art and game details</strong> such as descriptions,
+            genres, and release dates come from Steam's public store and CDN
+            endpoints, which need no key.</li>
+            <li><strong>Preloading</strong> is done by a separate, bundled SteamPrefill
+            sidecar that you log into once, interactively. That login lets it download
+            depots you already own on your behalf; the credentials stay on your server
+            and are sent nowhere else.</li>
+          </ul>
+          Nothing about your library or account leaves your server except the calls
+          Buffarr makes directly to Steam.
+        </div>
+      </details>
+
+    </div>
+  </div>
+  {{template "frame_close" .}}
+</body>
+</html>
+{{end}}

@@ -1,0 +1,215 @@
+{{define "library.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Library - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body class="page-hero"{{if .HeroAppID}} style="--hero: url('/posters/steam/{{.HeroAppID}}?kind=hero')"{{end}}>
+  {{template "nav" .}}
+  <div id="toast"></div>
+  <h1>Library</h1>
+  <p class="subtitle">Games held in the cache</p>
+
+  <div class="card">
+    <div class="card-title-row">
+      <div class="card-title">Cached games</div>
+      <div class="card-title-controls">
+        {{if eq .View "list"}}
+        <a class="btn btn--sm" href="?view=grid&sort={{.Sort}}">Grid</a>
+        {{else}}
+        <a class="btn btn--sm" href="?view=list&sort={{.Sort}}">List</a>
+        {{end}}
+        <select class="sort-select" onchange="window.location='?view={{.View}}&sort='+this.value">
+          <option value="size"{{if eq .Sort "size"}} selected{{end}}>Size</option>
+          <option value="name"{{if eq .Sort "name"}} selected{{end}}>Name</option>
+          <option value="age"{{if eq .Sort "age"}} selected{{end}}>Age</option>
+        </select>
+      </div>
+    </div>
+    {{if .Entries}}
+    <div class="lib-toolbar">
+      <input type="search" id="lib-search" class="input-search" placeholder="Search by name&hellip;"
+             autocomplete="off" oninput="buffarrFilterLibrary()" aria-label="Search cached games by name">
+      <div class="seg" role="group" aria-label="Filter by lock state">
+        <button type="button" class="seg-btn is-active" data-filter="all" onclick="buffarrLibSetFilter('all')">All</button>
+        <button type="button" class="seg-btn" data-filter="locked" onclick="buffarrLibSetFilter('locked')">Locked</button>
+        <button type="button" class="seg-btn" data-filter="unlocked" onclick="buffarrLibSetFilter('unlocked')">Unlocked</button>
+      </div>
+    </div>
+    <p id="lib-empty" class="note" style="display:none">No games match your search.</p>
+    {{if eq .View "list"}}
+    <div id="bulk-bar" class="bulk-bar">
+      <span id="bulk-count" class="bulk-count"></span>
+      <button class="btn btn--sm btn--primary"
+              hx-post="/library/bulk/lock?sort={{.Sort}}"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-include="#list-form"
+              hx-target="#library-tbody"
+              hx-swap="innerHTML">Lock</button>
+      <button class="btn btn--sm"
+              hx-post="/library/bulk/unlock?sort={{.Sort}}"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-include="#list-form"
+              hx-target="#library-tbody"
+              hx-swap="innerHTML">Unlock</button>
+      <button class="btn btn--sm"
+              hx-post="/library/bulk/update"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-include="#list-form"
+              hx-swap="none">Update</button>
+      <button class="btn btn--sm btn--danger"
+              hx-post="/library/bulk/delete?sort={{.Sort}}"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-include="#list-form"
+              hx-target="#library-tbody"
+              hx-swap="innerHTML"
+              hx-confirm="Delete selected games? This frees disk space immediately.">Delete</button>
+    </div>
+    <form id="list-form">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="list-check-col"><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
+          <th>Name</th>
+          <th>Size</th>
+          <th>Platform</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="library-tbody">
+        {{template "library_list_rows" .Entries}}
+      </tbody>
+    </table>
+    </form>
+    <script>
+    function updateBulkBar() {
+      var checked = document.querySelectorAll('#list-form input[name="game"]:checked').length;
+      var bar = document.getElementById('bulk-bar');
+      bar.style.display = checked > 0 ? 'flex' : 'none';
+      document.getElementById('bulk-count').textContent = checked + (checked === 1 ? ' game' : ' games') + ' selected';
+    }
+    function toggleAll(cb) {
+      document.querySelectorAll('#list-form input[name="game"]').forEach(function(c) { c.checked = cb.checked; });
+      updateBulkBar();
+    }
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target && e.detail.target.id === 'library-tbody') {
+        document.getElementById('bulk-bar').style.display = 'none';
+        var ca = document.getElementById('check-all');
+        if (ca) ca.checked = false;
+      }
+    });
+    </script>
+    {{else}}
+    <div class="poster-grid">
+      {{range .Entries}}{{template "library_card" .}}{{end}}
+    </div>
+    {{end}}
+    {{else}}
+    <p class="note">No games are cached yet. Prefill some from the Prefill page, or point clients at the cache.</p>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Unmanaged cache</div>
+    <div id="buffer-section" hx-get="/guest/rows" hx-trigger="load" hx-swap="innerHTML">
+      <p class="note">Scanning cache&hellip;</p>
+    </div>
+  </div>
+
+  <script>
+  // Client-side search + lock-state filter over the "Cached games" section only
+  // (matches [data-lib-name], which the Unmanaged section's rows don't carry).
+  // Works for both grid cards and list rows. Mirrors the Preload page filter.
+  var buffarrLibFilter = 'all';
+  function buffarrLibSetFilter(f) {
+    buffarrLibFilter = f;
+    document.querySelectorAll('.lib-toolbar .seg-btn').forEach(function (b) {
+      b.classList.toggle('is-active', b.dataset.filter === f);
+    });
+    buffarrFilterLibrary();
+  }
+  function buffarrFilterLibrary() {
+    var si = document.getElementById('lib-search');
+    var q = si ? si.value.trim().toLowerCase() : '';
+    var items = document.querySelectorAll('[data-lib-name]');
+    var shown = 0;
+    items.forEach(function (el) {
+      var name = (el.getAttribute('data-lib-name') || '').toLowerCase();
+      var locked = el.getAttribute('data-lib-locked') === '1';
+      var okName = !q || name.indexOf(q) !== -1;
+      var okFilter = buffarrLibFilter === 'all' || (buffarrLibFilter === 'locked') === locked;
+      var show = okName && okFilter;
+      el.style.display = show ? '' : 'none';
+      if (show) shown++;
+    });
+    var empty = document.getElementById('lib-empty');
+    if (empty) empty.style.display = (items.length && shown === 0) ? '' : 'none';
+  }
+  // Deep link: /library?filter=locked (used by the dashboard tiles).
+  (function () {
+    try {
+      var p = new URLSearchParams(window.location.search).get('filter');
+      if (p === 'locked' || p === 'unlocked') buffarrLibSetFilter(p);
+    } catch (e) {}
+  })();
+  // Reapply the active filter after a bulk lock/unlock/delete re-renders the list.
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target && e.detail.target.id === 'library-tbody') buffarrFilterLibrary();
+  });
+  </script>
+  {{template "frame_close" .}}
+</body>
+</html>
+{{end}}
+
+{{define "library_list_rows"}}
+{{range .}}
+<tr data-lib-name="{{.Name}}" data-lib-locked="{{if .Monitored}}1{{else}}0{{end}}">
+  <td class="list-check-col"><input type="checkbox" name="game" value="{{.Platform}}:{{.GameKey}}" onchange="updateBulkBar()"></td>
+  <td><a class="poster-title-link" href="/library/{{.Platform}}/{{.GameKey}}">{{.Name}}</a></td>
+  <td class="num">{{humanBytes .SizeBytes}}</td>
+  <td>{{.Platform}}</td>
+  <td>{{if .Monitored}}<span class="badge badge--warn">Locked</span>{{else}}<span class="badge">Unlocked</span>{{end}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "library_card"}}
+<div class="poster-card" id="row-{{.Platform}}-{{.GameKey}}" data-lib-name="{{.Name}}" data-lib-locked="{{if .Monitored}}1{{else}}0{{end}}">
+  <div class="poster-art">
+    <a class="poster-link" href="/library/{{.Platform}}/{{.GameKey}}" aria-label="{{.Name}} details"></a>
+    {{if eq .Platform "steam"}}<img class="poster-img" loading="lazy" src="/posters/{{.Platform}}/{{.GameKey}}" alt="" onerror="this.remove()">{{end}}
+    <span class="poster-fallback">{{.Name}}</span>
+    {{if .Monitored}}<span class="poster-badge" title="Locked"></span>{{end}}
+    <div class="poster-actions">
+      {{if .Monitored}}
+      <button class="btn btn--sm"
+              hx-post="/library/{{.Platform}}/{{.GameKey}}/unmonitor"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-target="closest .poster-card" hx-swap="outerHTML">Unlock</button>
+      <button class="btn btn--sm btn--danger" disabled
+              title="Unlock before deleting (a locked entry cannot be deleted)">Delete</button>
+      {{else}}
+      <button class="btn btn--sm btn--primary"
+              hx-post="/library/{{.Platform}}/{{.GameKey}}/monitor"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-target="closest .poster-card" hx-swap="outerHTML">Lock</button>
+      <button class="btn btn--sm btn--danger"
+              hx-post="/library/{{.Platform}}/{{.GameKey}}/delete"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-target="closest .poster-card" hx-swap="outerHTML"
+              hx-confirm="Delete {{.Name}}? This frees {{humanBytes .SizeBytes}} immediately.">Delete</button>
+      {{end}}
+    </div>
+  </div>
+  <div class="poster-meta">
+    <div class="poster-title" title="{{.Name}}"><a class="poster-title-link" href="/library/{{.Platform}}/{{.GameKey}}">{{.Name}}</a></div>
+    <div class="poster-sub"><span class="num">{{humanBytes .SizeBytes}}</span> &middot; {{.Platform}}</div>
+  </div>
+</div>
+{{end}}

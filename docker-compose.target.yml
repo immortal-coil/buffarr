@@ -1,0 +1,32 @@
+# Target-host override: store cache data on a host bind mount instead of a
+# Docker-managed volume.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.target.yml up -d
+#
+# Overrides the cache-data named volume with a bind mount to /mnt/buffarr
+# so cache data is stored directly on the host filesystem.
+
+services:
+  nginx:
+    volumes:
+      - /mnt/buffarr:${CACHE_ROOT:-/data/cache}
+      - nginx-shared:/shared/nginx
+      - nginx-logs:/var/log/nginx
+
+  backend:
+    volumes:
+      # Read-write so the backend can write the asset cache to
+      # /mnt/buffarr/assets on the cache disk (nginx owns /mnt/buffarr/cache).
+      - /mnt/buffarr:${CACHE_ROOT:-/data/cache}
+      - backend-data:/data
+      - nginx-shared:/shared/nginx
+      - nginx-logs:/var/log/nginx:ro
+      - dnsmasq-shared:/shared/dnsmasq
+      - prefill-shared:/shared/prefill
+
+volumes:
+  cache-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/buffarr

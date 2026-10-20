@@ -1,0 +1,152 @@
+name: buffarr
+
+services:
+  nginx:
+    build: ./docker/nginx
+    image: ${IMAGE_REGISTRY:-buffarr}/buffarr-nginx:latest
+    # Use the upstream DNS (not the LAN cache's DNS) so nginx can resolve
+    # CDN hostnames to their real IPs for proxy_pass. Without this, the host's
+    # DNS (Unbound with cache-redirect entries) causes nginx to resolve CDN
+    # domains back to itself, creating a proxy loop caught by loop detection.
+    dns:
+      - ${UPSTREAM_DNS:-1.1.1.1}
+    environment:
+      - CACHE_ROOT=${CACHE_ROOT:-/data/cache}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-500g}
+      - CACHE_MIN_FREE=${CACHE_MIN_FREE:-10g}
+      - CACHE_INACTIVE=${CACHE_INACTIVE:-365d}
+      - CACHE_KEYS_ZONE=${CACHE_KEYS_ZONE:-100m}
+      - NGINX_PURGE_SECRET=${NGINX_PURGE_SECRET}
+      - UPSTREAM_DNS=${UPSTREAM_DNS:-1.1.1.1}
+    volumes:
+      - ${CACHE_ROOT:-/data/cache}:${CACHE_ROOT:-/data/cache}
+      - nginx-shared:/shared/nginx
+      - nginx-logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    ports:
+      - "80:80"
+      # SNI passthrough for CDN HTTPS (port 443). The cache (nginx) only
+      # serves, and can only cache, HTTP on port 80. Modern Steam fetches depot
+      # MANIFESTS over HTTPS, so with no 443 listener the very first manifest
+      # request to a DNS-hijacked CDN host is refused and SteamPrefill caches
+      # nothing ("Unable to download manifests", 0 b). nginx's stream module
+      # (ngx_stream_ssl_preread_module) reads the TLS ClientHello SNI hostname
+      # and forwards raw TCP to the real origin without decrypting -- the same
+      # behavior as the former lancachenet/sniproxy container, now without the
+      # separate upstream dependency. UPSTREAM_DNS must be a real resolver (not
+      # the LAN cache's DNS) or the stream resolver would loop, same as before.
+      - "443:443"
+
+  dnsmasq:
+    build: ./docker/dnsmasq
+    image: ${IMAGE_REGISTRY:-buffarr}/buffarr-dnsmasq:latest
+    environment:
+      - UPSTREAM_DNS=${UPSTREAM_DNS:-1.1.1.1}
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - dnsmasq-shared:/shared/dnsmasq
+    healthcheck:
+      test: ["CMD", "nslookup", "-port=53", "localhost", "127.0.0.1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    ports:
+      # Bind DNS to the cache server's own LAN IP rather than 0.0.0.0, so it is
+      # not an open resolver on any other interface (M4). BUFFARR_IP is required;
+      # if unset this falls back to all interfaces.
+      - "${BUFFARR_IP}:53:53/tcp"
+      - "${BUFFARR_IP}:53:53/udp"
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./docker/backend/Dockerfile
+    image: ${IMAGE_REGISTRY:-buffarr}/buffarr-backend:latest
+    environment:
+      - CACHE_ROOT=${CACHE_ROOT:-/data/cache}
+      # Cover art, hero backgrounds, and Storefront metadata live alongside the
+      # cache data on the cache disk, under CACHE_ROOT/assets (the backend
+      # mounts the cache read-write below so it can write them).
+      - POSTER_DIR=${CACHE_ROOT:-/data/cache}/assets
+      - STEAM_WEB_API_KEY=${STEAM_WEB_API_KEY}
+      - STEAM_OPERATOR_ID64=${STEAM_OPERATOR_ID64}
+      - NGINX_PURGE_SECRET=${NGINX_PURGE_SECRET}
+      - BUFFARR_IP=${BUFFARR_IP}
+      # Optional static key enabling the JSON API at /api/v1/ (docs/API.md).
+      # Blank keeps the API disabled.
+      - BUFFARR_API_KEY=${BUFFARR_API_KEY:-}
+      # Only "true" when behind a trusted TLS-terminating reverse proxy; makes
+      # the Steam login redirect honor X-Forwarded-Proto/Host (see .env.example).
+      - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-false}
+      # Local time zone for timestamps. Defaults to UTC; set TZ in .env (e.g.
+      # America/Los_Angeles) to render in the operator's zone. The binary embeds
+      # zoneinfo (time/tzdata) so named zones resolve on Alpine.
+      - TZ=${TZ:-UTC}
+      # Custom TLS cert/key paths inside the container. Both default to the
+      # self-signed cert generated at first boot (/data/tls/). To supply your own,
+      # set these in .env AND add a volume mount so the files are accessible.
+      - TLS_CERT_PATH=${TLS_CERT_PATH:-}
+      - TLS_KEY_PATH=${TLS_KEY_PATH:-}
+    volumes:
+      # Read-write so the backend can write the asset cache (CACHE_ROOT/assets)
+      # onto the cache disk. nginx owns the cache zone (CACHE_ROOT/cache); the
+      # backend never writes there itself (it evicts via PURGE) and only reads
+      # it for reconcile.
+      - ${CACHE_ROOT:-/data/cache}:${CACHE_ROOT:-/data/cache}
+      - backend-data:/data
+      - nginx-shared:/shared/nginx
+      - nginx-logs:/var/log/nginx:ro
+      - dnsmasq-shared:/shared/dnsmasq
+      - prefill-shared:/shared/prefill
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "https://127.0.0.1:9443/healthz", "--no-check-certificate"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      - nginx
+      - dnsmasq
+    ports:
+      # Plain HTTP is published to the host loopback only, so the app and its
+      # session cookie are never served over HTTP to the LAN (H2). LAN/remote
+      # access is over HTTPS :9443, directly or through a reverse proxy.
+      - "127.0.0.1:9080:9080"
+      - "9443:9443"
+
+  prefill:
+    build: ./docker/prefill
+    image: ${IMAGE_REGISTRY:-buffarr}/buffarr-prefill:latest
+    environment:
+      - PREFILL_MAX_RUNTIME_SECONDS=${PREFILL_MAX_RUNTIME_SECONDS:-7200}
+    # The entrypoint's foreground process is `inotifywait -m | while read`;
+    # if inotifywait ever dies the pipe closes, the loop hits EOF, and the
+    # container exits -- with no restart policy it then stays dead and the
+    # next trigger wedges IsRunning() until a manual `up -d prefill`. Restart
+    # on exit so startup-recovery (the `if [ -f "$TRIGGER" ]` block) self-heals.
+    restart: unless-stopped
+    # /Config is steam-lancache-prefill's own hardcoded path (confirmed
+    # against the pinned v2.2.2 source and the upstream project's Docker
+    # setup guide), not something we chose -- this volume is also where
+    # the one-time interactive Steam login (`docker compose run --rm
+    # --entrypoint /SteamPrefill prefill`) persists its credentials. The
+    # backend mounts the same volume at /shared/prefill to write the
+    # trigger/selection files and read status back.
+    volumes:
+      - prefill-shared:/Config
+    healthcheck:
+      test: ["CMD", "pgrep", "inotifywait"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  backend-data:
+  nginx-shared:
+  nginx-logs:
+  dnsmasq-shared:
+  prefill-shared:

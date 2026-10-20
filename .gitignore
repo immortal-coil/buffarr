@@ -1,0 +1,10 @@
+.env
+.env.save
+deploy.env
+*.db
+/data/
+*.log
+!internal/prefill/testdata/*.log
+docker-compose.override.yml
+.claude/
+graphify-out/

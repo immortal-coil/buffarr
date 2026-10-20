@@ -1,0 +1,296 @@
+{{define "prefill.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Preload - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body class="page-hero"{{if .HeroAppID}} style="--hero: url('/posters/steam/{{.HeroAppID}}?kind=hero')"{{end}}>
+  {{template "nav" .}}
+  <div id="toast"></div>
+  <h1>Preload</h1>
+  <p class="subtitle">Warm the cache with games you own</p>
+
+  <div class="card">
+    <div class="card-title">Status</div>
+    <div id="prefill-status" hx-get="/prefill/status" hx-trigger="every 3s" hx-swap="innerHTML">
+      {{template "prefill_status" .}}
+    </div>
+  </div>
+
+  {{if not .Sections}}
+    <div class="card">
+      <div class="card-title">Available games</div>
+      <p class="note">No game sources are online. Enable Steam under Platforms on the Settings page to load games into the cache.</p>
+    </div>
+  {{else}}
+    <div class="card">
+      <div class="card-title">Available games</div>
+      <div class="prefill-controls">
+        <input type="search" id="prefill-search" class="input-search"
+               placeholder="Search games by name&hellip;"
+               oninput="buffarrFilterPrefill(this.value)"
+               aria-label="Search available games">
+        <label class="chk-inline"><input type="checkbox" id="prefill-hidecached"
+               onchange="buffarrFilterPrefill(document.getElementById('prefill-search').value)"> Hide cached</label>
+      </div>
+      <p id="prefill-search-empty" class="note" style="display:none">No games match your search.</p>
+      {{range .Sections}}
+      <details class="section" open>
+        <summary>{{.Platform}}</summary>
+        <div>
+          {{if .Error}}
+            <p class="error">{{.Error}}</p>
+          {{else if not .Games}}
+            <p class="note">No games available.</p>
+          {{else}}
+          <div class="poster-grid">
+            {{range .Games}}
+            <div class="poster-card" data-bytes="{{if .TotalBytes}}{{.TotalBytes}}{{else}}0{{end}}" data-cached="{{if .CachedBytes}}1{{else}}0{{end}}">
+              <div class="poster-art">
+                <a class="poster-link" href="/library/steam/{{.AppID}}" aria-label="{{.Name}} details"></a>
+                <input type="checkbox" class="prefill-check" value="{{.AppID}}"
+                       onchange="buffarrUpdateSelectBar()" aria-label="Select {{.Name}}"
+                       style="position:absolute;top:6px;left:6px;z-index:3;width:18px;height:18px;cursor:pointer">
+                <img class="poster-img" loading="lazy" src="/posters/steam/{{.AppID}}" alt="" onerror="this.remove()">
+                <span class="poster-fallback">{{.Name}}</span>
+                {{if .CachedBytes}}<span class="poster-flag poster-flag--cached">Cached</span>{{end}}
+                <div class="poster-actions">
+                  <button class="btn btn--sm btn--primary"
+                          hx-post="/prefill/trigger"
+                          hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}'
+                          hx-vals='{"app_id": "{{.AppID}}"}'
+                          hx-target="#prefill-status" hx-swap="innerHTML">Queue</button>
+                </div>
+              </div>
+              <div class="poster-meta">
+                <div class="poster-title" title="{{.Name}}"><a class="poster-title-link" href="/library/steam/{{.AppID}}">{{.Name}}</a></div>
+                <div class="poster-sub">
+                  {{if .CachedBytes}}<span class="num">{{humanBytes .CachedBytes}}</span> cached
+                  {{else if .TotalBytes}}<span class="num">~{{humanBytes .TotalBytes}}</span>
+                  {{else}}<span class="num" title="Size unknown until this game is cached or resolved from Steam">&mdash;</span>{{end}}
+                </div>
+              </div>
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </details>
+      {{end}}
+    </div>
+  {{end}}
+
+  <div id="prefill-selectbar"
+       style="position:sticky;bottom:12px;z-index:20;display:none;align-items:center;gap:12px;margin-top:14px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);box-shadow:0 6px 20px rgba(0,0,0,.28)">
+    <strong id="prefill-selectcount" class="mono">0</strong>&nbsp;selected<span id="prefill-projection" class="note mono"></span>
+    <button class="btn btn--sm" onclick="buffarrSelectAllVisible()">Select all</button>
+    <button class="btn btn--sm" onclick="buffarrClearSelection()">Clear</button>
+    <span style="flex:1"></span>
+    <button class="btn btn--sm btn--primary" onclick="buffarrQueueSelected()">Queue selected</button>
+  </div>
+
+  {{template "frame_close" .}}
+  <script>
+    var BUFFARR_CSRF = "{{.CSRFToken}}";
+
+    function buffarrUpdateSelectBar() {
+      var n = document.querySelectorAll(".prefill-check:checked").length;
+      document.getElementById("prefill-selectcount").textContent = n;
+      document.getElementById("prefill-selectbar").style.display = n > 0 ? "flex" : "none";
+      buffarrUpdateProjection();
+    }
+
+    function buffarrFmtBytes(n) {
+      if (!n) return "0 B";
+      var u = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"], i = 0;
+      while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+      return (i >= 3 ? n.toFixed(1) : Math.round(n)) + " " + u[i];
+    }
+
+    // Projected disk after queueing the current selection. New bytes ~= each
+    // selected game's estimated total, but 0 for games already cached (queueing
+    // those is an update that overwrites in place, not net-new disk). Reads the
+    // live gauge's raw byte data-attrs; no-ops when the cache volume is unknown.
+    function buffarrUpdateProjection() {
+      var proj = document.getElementById("prefill-projection");
+      var bar = document.getElementById("prefill-selectbar");
+      var gauge = document.querySelector("#prefill-status .gauge");
+      if (!gauge) { if (proj) proj.textContent = ""; return; }
+      var total = +gauge.dataset.total || 0;
+      var used = +gauge.dataset.used || 0;
+      var cap = +gauge.dataset.cap || 0;
+      var added = 0;
+      document.querySelectorAll(".prefill-check:checked").forEach(function (cb) {
+        var card = cb.closest(".poster-card");
+        if (!card || card.dataset.cached === "1") return;
+        added += +card.dataset.bytes || 0;
+      });
+      buffarrDrawGhost(gauge, total, added);
+      if (!added || !total) { if (proj) proj.textContent = ""; bar.classList.remove("is-over", "is-full"); return; }
+      var projUsed = used + added;
+      var pct = Math.round(projUsed * 100 / total);
+      if (proj) proj.textContent = " · +" + buffarrFmtBytes(added) + " → " + pct + "%";
+      var overCap = cap > 0 && projUsed > cap;
+      var wontFit = projUsed > total;
+      bar.classList.toggle("is-full", wontFit);
+      bar.classList.toggle("is-over", overCap && !wontFit);
+      if (proj) proj.title = wontFit ? "Selection would exceed the disk"
+        : overCap ? "Selection would exceed the configured cache cap" : "";
+    }
+
+    // Ghost band on the gauge track showing the projected added fill. The gauge
+    // is re-rendered every 3s by the status refresh, so this is reapplied on
+    // selection change and after each swap (see the htmx:afterSwap hook below).
+    function buffarrDrawGhost(gauge, total, added) {
+      var track = gauge.querySelector(".gauge-track");
+      if (!track) return;
+      var ghost = track.querySelector(".gauge-seg--ghost");
+      if (!added || !total) { if (ghost) ghost.remove(); return; }
+      if (!ghost) {
+        ghost = document.createElement("div");
+        ghost.className = "gauge-seg gauge-seg--ghost";
+        track.appendChild(ghost);
+      }
+      ghost.style.width = Math.min(100, added * 100 / total) + "%";
+    }
+    // Select all checkboxes on cards currently visible (respects the search filter).
+    function buffarrSelectAllVisible() {
+      document.querySelectorAll(".poster-card").forEach(function (card) {
+        if (card.style.display === "none") return;
+        var cb = card.querySelector(".prefill-check");
+        if (cb) cb.checked = true;
+      });
+      buffarrUpdateSelectBar();
+    }
+    function buffarrClearSelection() {
+      document.querySelectorAll(".prefill-check:checked").forEach(function (cb) { cb.checked = false; });
+      buffarrUpdateSelectBar();
+    }
+    // Queue every checked game in one POST (the multi-add path), then swap the
+    // returned queue card into #prefill-status and re-arm htmx on it.
+    function buffarrQueueSelected() {
+      var boxes = Array.prototype.slice.call(document.querySelectorAll(".prefill-check:checked"));
+      if (!boxes.length) return;
+      var body = new URLSearchParams();
+      boxes.forEach(function (b) { body.append("app_id", b.value); });
+      fetch("/prefill/trigger", {
+        method: "POST",
+        headers: { "X-CSRF-Token": BUFFARR_CSRF, "Content-Type": "application/x-www-form-urlencoded" },
+        body: body
+      }).then(function (r) { return r.text(); }).then(function (html) {
+        var status = document.getElementById("prefill-status");
+        status.innerHTML = html;
+        if (window.htmx) htmx.process(status);
+        buffarrClearSelection();
+      });
+    }
+
+    // The 3s status refresh replaces #prefill-status (and the gauge inside it),
+    // so redraw the projection/ghost from the current selection after each swap.
+    document.body.addEventListener("htmx:afterSwap", function (e) {
+      if (e.detail.target && e.detail.target.id === "prefill-status") buffarrUpdateProjection();
+    });
+  </script>
+  <script>
+    // Client-side filter over the owned-games tables. Filtering live in the
+    // browser avoids a server round-trip per keystroke (each of which would
+    // re-hit Steam's Web API for the owned-games list). The 3s status refresh
+    // only swaps #prefill-status, so this input and its filter state survive.
+    function buffarrFilterPrefill(q) {
+      q = (q || "").trim().toLowerCase();
+      var hc = document.getElementById("prefill-hidecached");
+      var hideCached = hc && hc.checked;
+      var anyVisible = false;
+      document.querySelectorAll("details.section").forEach(function (det) {
+        var sectionVisible = 0;
+        det.querySelectorAll(".poster-card").forEach(function (card) {
+          var title = card.querySelector(".poster-title");
+          var name = title ? title.textContent.toLowerCase() : "";
+          var match = (q === "" || name.indexOf(q) !== -1) && !(hideCached && card.dataset.cached === "1");
+          card.style.display = match ? "" : "none";
+          if (match) { sectionVisible++; anyVisible = true; }
+        });
+        // Collapse a platform section entirely when none of its games match.
+        det.style.display = (q !== "" && sectionVisible === 0) ? "none" : "";
+      });
+      var empty = document.getElementById("prefill-search-empty");
+      if (empty) empty.style.display = (q !== "" && !anyVisible) ? "" : "none";
+    }
+  </script>
+</body>
+</html>
+{{end}}
+
+{{define "prefill_status"}}
+{{template "capacity_gauge" .}}
+{{if .CachedGameCount}}<p class="note"><b class="mono">{{.CachedGameCount}}</b> games cached</p>{{end}}
+
+{{if .Queue}}
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+    {{range .Queue}}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)">
+      {{if eq .Status "active"}}<span title="Downloading">&#9203;</span>
+      {{else if eq .Status "failed"}}<span title="Failed">&#10060;</span>
+      {{else}}<span class="note mono" style="min-width:1.4em;text-align:right">{{.Position}}</span>{{end}}
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{.Name}}">{{.Name}}</span>
+
+      {{if eq .Status "active"}}
+        <span style="flex:1.4;min-width:90px">
+          {{if $.ProgressComplete}}
+          <div class="progress progress--determinate" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="progress-fill progress-fill--complete" style="width:100%"></div></div>
+          {{else if $.Progress}}
+          <div class="progress progress--determinate" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{$.Progress}}"><div class="progress-fill" style="width:{{$.Progress}}%"></div></div>
+          {{else}}<span class="note">starting&hellip;</span>{{end}}
+        </span>
+        <span class="note mono" style="text-align:right;white-space:nowrap">{{if $.Progress}}{{$.Progress}}%{{if $.ProgressTotal}} of {{$.ProgressTotal}}{{end}}{{if $.ProgressSpeedBytes}} &middot; {{humanBytes $.ProgressSpeedBytes}}/s{{end}}{{else}}&mdash;{{end}}</span>
+        <button class="btn btn--sm btn--danger" hx-post="/prefill/cancel"
+                hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}'
+                hx-target="#prefill-status" hx-swap="innerHTML"
+                hx-confirm="Stop the active preload?">Cancel</button>
+      {{else if eq .Status "failed"}}
+        <span class="badge badge--warn" title="{{.Error}}">Failed</span>
+        <button class="btn btn--sm" hx-post="/prefill/queue/{{.ID}}/retry"
+                hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}' hx-target="#prefill-status" hx-swap="innerHTML">Retry</button>
+        <button class="btn btn--sm btn--danger" hx-post="/prefill/queue/{{.ID}}/remove"
+                hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}' hx-target="#prefill-status" hx-swap="innerHTML"
+                title="Remove" aria-label="Remove {{.Name}}">&times;</button>
+      {{else}}
+        <button class="btn btn--sm" hx-post="/prefill/queue/{{.ID}}/up"
+                hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}' hx-target="#prefill-status" hx-swap="innerHTML"
+                title="Move up" aria-label="Move {{.Name}} up">&#9650;</button>
+        <button class="btn btn--sm" hx-post="/prefill/queue/{{.ID}}/down"
+                hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}' hx-target="#prefill-status" hx-swap="innerHTML"
+                title="Move down" aria-label="Move {{.Name}} down">&#9660;</button>
+        <button class="btn btn--sm btn--danger" hx-post="/prefill/queue/{{.ID}}/remove"
+                hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}' hx-target="#prefill-status" hx-swap="innerHTML"
+                title="Remove" aria-label="Remove {{.Name}}">&times;</button>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+{{end}}
+
+{{if and .Running (not .HasActive)}}
+  <p style="margin-top:8px">&#9203; {{if .RunningIsUpdate}}Updating{{else}}Preloading{{end}} {{.RunningGameName}}&hellip;{{if .Progress}}
+     <strong class="mono">{{.Progress}}%</strong>{{if .ProgressTotal}} of {{.ProgressTotal}}{{end}}{{end}}</p>
+  {{if .ProgressComplete}}
+  <div class="progress progress--determinate" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="progress-fill progress-fill--complete" style="width:100%"></div></div>
+  {{else if .Progress}}
+  <div class="progress progress--determinate" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{.Progress}}"><div class="progress-fill" style="width:{{.Progress}}%"></div></div>
+  {{else}}
+  <div class="progress" role="progressbar" aria-valuetext="Preload in progress"></div>
+  {{end}}
+  <button class="btn btn--sm btn--danger" hx-post="/prefill/cancel"
+          hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+          hx-target="#prefill-status" hx-swap="innerHTML"
+          hx-confirm="Stop the active preload?">Cancel</button>
+{{end}}
+
+{{if and (not .Queue) (not .Running)}}
+  <p class="note">Nothing queued, and no preload running.</p>
+{{end}}
+{{end}}

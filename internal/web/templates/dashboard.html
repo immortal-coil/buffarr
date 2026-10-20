@@ -1,0 +1,107 @@
+{{define "dashboard.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body class="page-hero"{{if .HeroAppID}} style="--hero: url('/posters/steam/{{.HeroAppID}}?kind=hero')"{{end}}>
+  {{template "nav" .}}
+  <div id="toast"></div>
+  <h1>Dashboard</h1>
+  <p class="subtitle">Cache status</p>
+
+  {{if .CacheTotalBytes}}
+  <div class="hero">
+    <div class="card meter-card">
+      <div class="card-title">Disk usage</div>
+      {{template "capacity_gauge" .}}
+    </div>
+    <div class="tiles">
+      <a class="tile tile--link" href="/library">
+        <div class="tile-num">{{if .CachedGameCount}}{{.CachedGameCount}}{{else}}0{{end}}</div>
+        <div class="tile-label">Games cached</div>
+      </a>
+      <a class="tile tile--link" href="/library?filter=locked">
+        <div class="tile-num">{{if .LockedCount}}{{.LockedCount}}{{else}}0{{end}}</div>
+        <div class="tile-label">Locked</div>
+      </a>
+      <div class="tile">
+        <div class="tile-num">{{humanBytes .CacheFreeBytes}}</div>
+        <div class="tile-label">Free space</div>
+      </div>
+      <a class="tile tile--link" href="/guest">
+        <div class="tile-num">{{if .UnmanagedSize}}{{humanBytes .UnmanagedSize}}{{else}}0 B{{end}}</div>
+        <div class="tile-label">Unmanaged</div>
+      </a>
+    </div>
+  </div>
+  {{else}}
+  <div class="card">
+    <p class="note">Disk statistics are unavailable. The cache volume may not be configured yet.</p>
+  </div>
+  {{end}}
+
+  <div class="card">
+    <div class="card-title">Cache performance</div>
+    {{if .BandwidthHasData}}
+    <div class="tiles">
+      <div class="tile">
+        <div class="tile-num">{{humanBytes .BandwidthSaved}}</div>
+        <div class="tile-label">Served from cache{{if .BandwidthSince}} &middot; since {{.BandwidthSince}}{{end}}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-num">{{.HitRatePct}}%</div>
+        <div class="tile-label">Cache hit-rate</div>
+      </div>
+    </div>
+    <p class="note">{{humanBytes .BandwidthFromUpstream}} pulled from the internet. Counting starts at this build; earlier history isn't included.</p>
+    {{else}}
+    <p class="note">No cache traffic recorded yet. Bandwidth saved and hit-rate appear here once clients start downloading through the cache.</p>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Preload</div>
+    {{if .Running}}
+      <p>&#9203; {{if .RunningIsUpdate}}Updating{{else}}Preloading{{end}} <strong>{{.RunningGameName}}</strong>{{if .Progress}} &mdash; <span class="num">{{.Progress}}%</span>{{if .ProgressTotal}} of {{.ProgressTotal}}{{end}}{{end}}</p>
+      {{if .Progress}}<div class="progress progress--determinate"><div class="progress-fill" style="width: {{.Progress}}%"></div></div>{{end}}
+    {{else if .LastStatus}}
+      {{if eq .LastStatus.State "success"}}
+        <p class="note">Nothing downloading. Last preloaded <strong>{{.LastGameName}}</strong>.</p>
+      {{else}}
+        <p class="note">Nothing downloading. Last preload ({{.LastGameName}}) failed.</p>
+      {{end}}
+    {{else}}
+      <p class="note">Nothing downloading.</p>
+    {{end}}
+  </div>
+
+  {{if .TopGames}}
+  <div class="card">
+    <div class="card-title">Largest cached games</div>
+    <div class="poster-grid">
+      {{range .TopGames}}
+      <a class="poster-card poster-card--link" href="/library/{{.Platform}}/{{.GameKey}}">
+        <div class="poster-art">
+          {{if eq .Platform "steam"}}<img class="poster-img" loading="lazy" src="/posters/steam/{{.GameKey}}" alt="" onerror="this.remove()">{{end}}
+          <span class="poster-fallback">{{.Name}}</span>
+          {{if .Monitored}}<span class="poster-badge" title="Locked"></span>{{end}}
+        </div>
+        <div class="poster-meta">
+          <div class="poster-title" title="{{.Name}}">{{.Name}}</div>
+          <div class="poster-sub"><span class="num">{{humanBytes .SizeBytes}}</span> &middot; {{.Platform}}</div>
+        </div>
+      </a>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  {{template "frame_close" .}}
+</body>
+</html>
+{{end}}

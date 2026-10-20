@@ -1,0 +1,108 @@
+{{define "game.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{.Game.Name}} - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body class="page-hero"{{if .HeroAppID}} style="--hero: url('/posters/steam/{{.HeroAppID}}?kind=hero')"{{end}}>
+  {{template "nav" .}}
+  <div id="toast"></div>
+  <p class="subtitle"><a class="back-link" href="/library">&larr; Library</a></p>
+
+  <div class="game-detail">
+    <div class="game-poster">
+      {{if eq .Game.Platform "steam"}}<img class="game-poster-img" src="/posters/{{.Game.Platform}}/{{.Game.GameKey}}" alt="" onerror="this.style.display='none'">{{end}}
+    </div>
+    <div class="game-body">
+      <h1 class="game-name">{{.Game.Name}}</h1>
+
+      {{with .Game.Store}}
+      <div class="game-tags">
+        {{if .ReleaseDate}}<span class="game-tag">{{.ReleaseDate}}</span>{{end}}
+        {{range .Genres}}<span class="game-tag">{{.}}</span>{{end}}
+        {{if .MetacriticScore}}<span class="game-tag game-tag--score">Metacritic {{.MetacriticScore}}</span>{{end}}
+      </div>
+      {{if .Developers}}<p class="game-by">{{range $i, $d := .Developers}}{{if $i}}, {{end}}{{$d}}{{end}}</p>{{end}}
+      {{if .ShortDescription}}<p class="game-desc">{{.ShortDescription}}</p>{{end}}
+      {{end}}
+
+      <div class="game-stats">
+        <div class="game-stat">
+          <div class="game-stat-num">{{if .Game.CacheKeyCount}}{{humanBytes .Game.SizeBytes}}{{else}}Not cached{{end}}</div>
+          <div class="game-stat-label">{{if .Game.CacheKeyCount}}Cached{{else}}Cache{{end}}</div>
+        </div>
+        {{if .Game.DownloadBytes}}
+        <div class="game-stat">
+          <div class="game-stat-num">{{humanBytes .Game.DownloadBytes}}</div>
+          <div class="game-stat-label">Download size</div>
+        </div>
+        {{end}}
+        {{if .Game.CacheKeyCount}}
+        <div class="game-stat">
+          <div class="game-stat-num">{{if .Game.Monitored}}Locked{{else}}Unlocked{{end}}</div>
+          <div class="game-stat-label">Status</div>
+        </div>
+        {{end}}
+        {{if and .Game.CacheKeyCount (not .Game.LastSeen.IsZero)}}
+        <div class="game-stat">
+          <div class="game-stat-num">{{.Game.LastSeen.Format "Jan 2, 2006"}}</div>
+          <div class="game-stat-label">Last served</div>
+        </div>
+        {{end}}
+      </div>
+
+      {{template "game_actions" .Game}}
+      {{if and .Game.CacheKeyCount (eq .Game.Platform "steam")}}
+      <p class="note">Update re-downloads any depots that changed since this was cached; unchanged data is skipped.</p>
+      {{end}}
+
+      <div id="prefill-status" class="game-preload" hx-get="/prefill/status" hx-trigger="every 3s" hx-swap="innerHTML"></div>
+    </div>
+  </div>
+  {{template "frame_close" .}}
+</body>
+</html>
+{{end}}
+
+{{define "game_actions"}}
+<div id="game-actions" class="game-actions">
+  {{if .CacheKeyCount}}
+  {{/* Cached: manage it. No Preload -- it is already in the cache. */}}
+  {{if eq .Platform "steam"}}
+  <button class="btn"
+          hx-post="/library/{{.Platform}}/{{.GameKey}}/update"
+          hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+          hx-swap="none">Update</button>
+  {{end}}
+  {{if .Monitored}}
+  <button class="btn btn--primary"
+          hx-post="/library/{{.Platform}}/{{.GameKey}}/unmonitor?view=detail"
+          hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+          hx-target="#game-actions" hx-swap="outerHTML">Unlock</button>
+  <button class="btn btn--danger" disabled
+          title="Unlock before deleting (a locked game cannot be deleted)">Delete</button>
+  {{else}}
+  <button class="btn btn--primary"
+          hx-post="/library/{{.Platform}}/{{.GameKey}}/monitor?view=detail"
+          hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+          hx-target="#game-actions" hx-swap="outerHTML">Lock</button>
+  <button class="btn btn--danger"
+          hx-post="/library/{{.Platform}}/{{.GameKey}}/delete?view=detail"
+          hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+          hx-target="#game-actions" hx-swap="outerHTML"
+          hx-confirm="Delete {{.Name}}? This frees {{humanBytes .SizeBytes}} immediately.">Delete</button>
+  {{end}}
+  {{else if eq .Platform "steam"}}
+  {{/* Not cached yet: the only sensible action is to warm it. */}}
+  <button class="btn btn--primary"
+          hx-post="/prefill/trigger"
+          hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+          hx-vals='{"app_id": "{{.GameKey}}"}'
+          hx-target="#prefill-status" hx-swap="innerHTML">Preload</button>
+  {{end}}
+</div>
+{{end}}

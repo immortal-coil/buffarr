@@ -1,0 +1,36 @@
+{{define "setup.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Setup - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+  <div class="auth">
+    <div class="auth-card">
+      <div class="auth-head"><img src="/static/logo.png" alt="" width="22" height="22" style="border-radius:5px;vertical-align:middle;margin-right:7px">Buffarr setup</div>
+      <div class="auth-body">
+        <p class="note">Before you can log in, configure the operator Steam account. Only this
+        SteamID64 will ever be allowed to log in.</p>
+        {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+        <form method="post" action="/setup">
+          <div class="field">
+            <label for="steam_web_api_key">Steam Web API key</label>
+            <input type="text" id="steam_web_api_key" name="steam_web_api_key" required>
+            <small>Get one at <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a>.</small>
+          </div>
+          <div class="field">
+            <label for="steam_operator_id64">Your SteamID64</label>
+            <input type="text" id="steam_operator_id64" name="steam_operator_id64" pattern="\d{17}" required>
+            <small>17-digit number. Look it up at <a href="https://steamid.io/" target="_blank" rel="noopener">steamid.io</a> if you don't know it.</small>
+          </div>
+          <button type="submit" class="btn btn--primary">Save and continue</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+{{end}}

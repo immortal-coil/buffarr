@@ -1,0 +1,6 @@
+*.cs.steampowered.com
+*.steam-cdn.com
+*.steamcdn-a.akamaihd.net
+*.steamcontent.com
+client-download.steampowered.com
+lancache.steamcontent.com

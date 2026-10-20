@@ -1,0 +1,701 @@
+/* Buffarr -- dashboard theme.
+ *
+ * Everything visual is driven by CSS custom
+ * properties so the look is fully themeable: the :root block is the default
+ * "Slate" (dark) theme, and [data-theme="..."] blocks override the same tokens
+ * for "Paper" (light) and "Amber" (dark terminal). The theme is applied to
+ * <html data-theme> by a tiny inline script in each page <head> (no flash) and
+ * switched by a button in the top bar; the choice persists in localStorage.
+ *
+ * Type: system UI faces for chrome, monospace with tabular figures for all
+ * data (bytes, sizes, percentages) so numbers read as numbers and columns line
+ * up. No web-font downloads -- the app must render on a LAN with no internet. */
+
+:root {
+  --bg: #0e1014;
+  --surface: #161922;
+  --surface-2: #1e222c;
+  --border: #2a2f3b;
+  --text: #e7e9ee;
+  --muted: #99a1b0;
+  --accent: #5b8cff;
+  --accent-hover: #6f9bff;
+  --on-accent: #0b0d12;
+  --ok: #3fb950;
+  --warn: #d4a017;
+  --danger: #f0524a;
+  --on-danger: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 20px rgba(0, 0, 0, .28);
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="paper"] {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --border: #e1e6ee;
+  --text: #1b1f27;
+  --muted: #5c6573;
+  --accent: #2f6df0;
+  --accent-hover: #2a61d8;
+  --on-accent: #ffffff;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --danger: #d1242f;
+  --on-danger: #ffffff;
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 6px 20px rgba(20, 30, 50, .07);
+}
+
+[data-theme="amber"] {
+  --bg: #0c0a07;
+  --surface: #15110b;
+  --surface-2: #1d1810;
+  --border: #2c2516;
+  --text: #f4e7cf;
+  --muted: #a8946f;
+  --accent: #f2a93b;
+  --accent-hover: #ffbb4d;
+  --on-accent: #1a1304;
+  --ok: #9bcf52;
+  --warn: #f2c14e;
+  --danger: #ef6a4a;
+  --on-danger: #1a1304;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 20px rgba(0, 0, 0, .4);
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+[data-theme="paper"] { color-scheme: light; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code, pre, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---- Top bar ------------------------------------------------------------ */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 56px;
+  padding: 0 20px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  font-size: 15px;
+  color: var(--text);
+}
+.brand:hover { text-decoration: none; }
+
+.nav { display: flex; gap: 2px; }
+.nav a {
+  color: var(--muted);
+  font-weight: 500;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+.nav a:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
+.nav a.is-active { color: var(--text); background: var(--surface-2); }
+
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+/* compact disk meter that lives in the bar */
+.disk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.disk-chip .mono { color: var(--text); }
+.disk-chip-track {
+  width: 84px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.disk-chip-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+
+.icon-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* ---- Layout ------------------------------------------------------------- */
+
+.main { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
+
+h1 { font-size: 26px; font-weight: 700; letter-spacing: -.025em; margin: 0 0 4px; }
+.subtitle { color: var(--muted); margin: 0 0 24px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 18px;
+}
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 14px;
+}
+.card-title-row .card-title { margin: 0; }
+.card-title-controls { display: flex; align-items: center; gap: 8px; }
+.bulk-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.bulk-count { color: var(--muted); font-size: 13px; flex: 1; }
+.list-check-col { width: 36px; }
+.sort-select {
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.note { color: var(--muted); margin: 0 0 14px; max-width: 70ch; }
+.note:last-child { margin-bottom: 0; }
+.error { color: var(--danger); font-weight: 500; }
+
+/* ---- Buttons ------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  padding: 9px 15px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, opacity .12s;
+}
+.btn:hover { border-color: var(--muted); text-decoration: none; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+.btn--primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.btn--primary:hover { background: var(--accent-hover); }
+.btn--danger {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  color: var(--danger);
+}
+.btn--danger:hover { background: var(--danger); border-color: transparent; color: var(--on-danger); }
+.btn--sm { padding: 6px 11px; font-size: 13px; }
+
+/* ---- Tables ------------------------------------------------------------- */
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td {
+  text-align: left;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  border-bottom-color: var(--border);
+}
+.table th[data-sort] { cursor: pointer; user-select: none; }
+.table th[data-sort]:hover { color: var(--text); }
+.table th[data-sort]::after { content: ""; }
+.table th[data-sort-dir="asc"]::after { content: " \2191"; color: var(--accent); }
+.table th[data-sort-dir="desc"]::after { content: " \2193"; color: var(--accent); }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: var(--surface-2); }
+.table .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.table td .btn { margin-right: 6px; }
+.table td .btn:last-child { margin-right: 0; }
+
+/* ---- Badges ------------------------------------------------------------- */
+
+.badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.badge--ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.badge--warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.badge--muted { color: var(--muted); background: var(--surface-2); }
+
+/* a small on/off status dot for the "monitored" column */
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; background: var(--border); }
+.dot--on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+
+/* ---- Forms -------------------------------------------------------------- */
+
+.field { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 6px; }
+.field label { font-weight: 600; }
+.field small { color: var(--muted); width: 100%; }
+input[type="text"], input[type="search"], input[type="password"] {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+}
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.input-search { width: 100%; max-width: 360px; margin-bottom: 14px; }
+
+/* ---- Disclosure (prefill platform sections) ----------------------------- */
+
+.section { border-top: 1px solid var(--border); }
+.section:first-of-type { border-top: none; }
+.section > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 12px 0;
+  list-style: none;
+}
+.section > summary::-webkit-details-marker { display: none; }
+.section > summary::before { content: "\25B8 "; color: var(--muted); }
+.section[open] > summary::before { content: "\25BE "; }
+
+/* ---- Progress (prefill) ------------------------------------------------- */
+
+.progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 10px 0;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .4s ease; }
+.progress-fill--complete { background: var(--ok); }
+/* indeterminate: a sliding sliver when no percent is known */
+.progress:not(.progress--determinate)::after {
+  content: "";
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  animation: indet 1.2s ease-in-out infinite;
+}
+@keyframes indet {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+/* ---- Callout / code ----------------------------------------------------- */
+
+.callout {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+.callout-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ---- Dashboard: capacity meter (the signature) -------------------------- */
+
+.hero { display: grid; gap: 18px; grid-template-columns: 1.4fr 1fr; align-items: stretch; }
+@media (max-width: 760px) { .hero { grid-template-columns: 1fr; } }
+
+.meter-card { display: flex; flex-direction: column; justify-content: center; }
+.meter-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.meter-pct { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 40px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.meter-pct span { font-size: 18px; color: var(--muted); }
+.meter-bytes { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
+.meter-bytes b { color: var(--text); font-weight: 600; }
+/* Segmented capacity gauge: Locked (protected) | Evictable | Free, with a
+   dashed marker at the configured cache cap. Encodes the Lock-wins model --
+   locked space is never reclaimed, so it's drawn as its own band. */
+.gauge-bar { position: relative; margin-bottom: 12px; }
+.gauge-track {
+  display: flex;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+.gauge-seg { height: 100%; flex-shrink: 0; transition: width .5s cubic-bezier(.2, .7, .2, 1); }
+.gauge-seg--locked { background: var(--warn); }
+.gauge-seg--evictable { background: var(--muted); }
+/* Projected fill from the Preload selection (U7): a translucent striped band
+   drawn after the used segments to preview where the queue would take usage. */
+.gauge-seg--ghost {
+  background-image: repeating-linear-gradient(45deg, var(--accent) 0 6px, transparent 6px 12px);
+  opacity: .6;
+}
+/* Cap marker sits outside the clipped track so it can overhang top and bottom. */
+.gauge-cap {
+  position: absolute; top: -3px; bottom: -3px; width: 0;
+  border-left: 2px dashed var(--text); opacity: .55; transform: translateX(-1px);
+}
+.gauge-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+.gauge-key { display: inline-flex; align-items: center; gap: 6px; }
+.gauge-key::before {
+  content: ""; width: 10px; height: 10px; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.gauge-key--locked::before { background: var(--warn); }
+.gauge-key--evictable::before { background: var(--muted); }
+.gauge-key--free::before { background: var(--surface-2); }
+.gauge-key b { color: var(--text); font-weight: 600; }
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.tile-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.tile-label { color: var(--muted); font-size: 13px; margin-top: 2px; }
+/* Tiles that link into a filtered view (Dashboard: Games/Locked/Unmanaged). */
+.tile--link { display: block; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+.tile--link:hover { border-color: var(--accent); transform: translateY(-1px); }
+.tile--link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Library search + lock-state filter toolbar. */
+.lib-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.lib-toolbar .input-search { flex: 1 1 200px; margin-bottom: 0; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.seg-btn { border: 0; background: transparent; color: var(--muted); padding: 6px 14px; font: inherit; cursor: pointer; }
+.seg-btn:not(:last-child) { border-right: 1px solid var(--border); }
+.seg-btn.is-active { background: var(--surface-2); color: var(--text); font-weight: 600; }
+
+/* Preload sticky bar states when the selection would exceed the cap/disk (U7).
+   Outline (not border/background) so it doesn't fight the bar's inline styles. */
+#prefill-selectbar.is-over { outline: 2px solid var(--warn); }
+#prefill-selectbar.is-full { outline: 2px solid var(--danger); }
+#prefill-selectbar.is-over #prefill-projection { color: var(--warn); }
+#prefill-selectbar.is-full #prefill-projection { color: var(--danger); }
+
+.quick { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+
+/* ---- Toast (out-of-band swap; class names kept for the dismiss script) -- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: 440px;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  opacity: 1;
+  transition: opacity .4s;
+}
+.toast-success { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.toast-error { border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.toast--dismissing { opacity: 0; }
+
+/* ---- Standalone auth pages (login / setup) ------------------------------ */
+
+.auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.auth-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -.02em;
+}
+.auth-body { padding: 22px; }
+.auth-body .btn { width: 100%; }
+.auth-body .field { display: block; margin-bottom: 16px; }
+.auth-body .field label { display: block; margin-bottom: 6px; }
+.auth-body .field input { width: 100%; }
+
+/* ---- Library poster grid ------------------------------------------------ */
+
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 14px;
+}
+.poster-card { display: flex; flex-direction: column; gap: 8px; }
+.poster-art {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+}
+.poster-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+/* name tile sitting behind the art -- the fallback shown when no <img> loads
+   (non-Steam entry, or art-less appID whose <img onerror> removed itself) */
+.poster-fallback {
+  padding: 10px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted);
+  z-index: 0;
+}
+.poster-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 30%, transparent), 0 1px 2px rgba(0, 0, 0, .5);
+}
+/* Legible state pill on box art -- replaces the bare "Cached" dot (U10). */
+.poster-flag {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  line-height: 1.4; color: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+}
+.poster-flag--cached { background: var(--ok); }
+/* Prefill select checkbox: dark halo so it stays visible over bright art (U10). */
+.prefill-check { accent-color: var(--accent); border-radius: 3px; box-shadow: 0 0 0 3px rgba(0, 0, 0, .45); }
+/* Selected card gets a clear accent outline (U10). :has is baseline in modern
+   browsers; degrades to no outline on older ones -- the checkbox still shows. */
+.poster-card:has(.prefill-check:checked) .poster-art { outline: 2px solid var(--accent); outline-offset: 1px; }
+.prefill-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 14px; }
+.prefill-controls .input-search { margin-bottom: 0; }
+.chk-inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; cursor: pointer; white-space: nowrap; }
+/* Persistent eviction-paused banner (U14) shown under the top bar on every page. */
+.evict-banner {
+  padding: 8px 16px; text-align: center; font-size: 14px;
+  color: var(--text); background: color-mix(in srgb, var(--warn) 22%, var(--surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+}
+.evict-banner a { color: inherit; text-decoration: underline; }
+/* Inline warning note (e.g. cap larger than the disk, U14). */
+.note--warn { color: var(--warn); }
+.poster-actions {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  padding: 12px 8px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, .82), rgba(0, 0, 0, 0));
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .15s, transform .15s;
+}
+.poster-card:hover .poster-actions,
+.poster-card:focus-within .poster-actions { opacity: 1; transform: none; }
+.poster-actions .btn { flex: 1; }
+.poster-meta { min-width: 0; }
+.poster-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poster-sub { color: var(--muted); font-size: 12px; }
+/* read-only poster card that is itself a link (dashboard "largest cached") */
+.poster-card--link { color: inherit; text-decoration: none; }
+.poster-card--link:hover { text-decoration: none; }
+.poster-card--link:hover .poster-art { border-color: var(--muted); }
+
+/* Click-through to the game detail page. The link fills the art beneath the
+   hover action buttons (z-index 2 vs the actions' 3). The actions overlay is
+   made click-transparent except for its buttons, so clicking the poster
+   navigates while Lock/Delete still work on hover. */
+.poster-link { position: absolute; inset: 0; z-index: 2; }
+.poster-badge { pointer-events: none; }
+.poster-actions { pointer-events: none; }
+/* Buttons are opacity:0 (still hit-testable) until hover/focus reveals them.
+   Gate their pointer-events on that same reveal so a touch device -- which
+   never hovers -- always navigates to the detail page instead of firing a
+   hidden Lock/Delete in the bottom strip. */
+.poster-actions .btn { pointer-events: none; }
+.poster-card:hover .poster-actions .btn,
+.poster-card:focus-within .poster-actions .btn { pointer-events: auto; }
+.poster-card:hover .poster-art { border-color: var(--muted); }
+.poster-title-link { color: inherit; text-decoration: none; }
+.poster-title-link:hover { text-decoration: underline; }
+
+/* ---- About / FAQ accordion ---- */
+.faq { display: flex; flex-direction: column; gap: 10px; }
+.faq-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.faq-item > summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+.faq-item > summary::-webkit-details-marker { display: none; }
+.faq-item > summary::after {
+  content: "+";
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.faq-item[open] > summary::after { content: "\2212"; } /* minus */
+.faq-item > summary:hover { color: var(--text); }
+.faq-item[open] > summary { border-bottom: 1px solid var(--border); }
+.faq-answer { padding: 14px 16px; color: var(--muted); line-height: 1.6; }
+.faq-answer ul { margin: 10px 0 0; padding-left: 20px; }
+.faq-answer li { margin: 5px 0; }
+
+/* ---- Game detail page (Radarr-style) ---- */
+.back-link { color: var(--muted); text-decoration: none; }
+.back-link:hover { color: var(--text); }
+.game-detail {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 720px) { .game-detail { grid-template-columns: 1fr; } }
+.game-poster {
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.game-poster-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.game-name { margin: 0 0 12px; }
+.game-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.game-tag {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.game-tag--score { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.game-by { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.game-desc { max-width: 60ch; line-height: 1.55; margin: 0 0 20px; }
+.game-stats { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 20px; }
+.game-stat-num { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.game-stat-label { color: var(--muted); font-size: 12px; }
+.game-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.game-preload:empty { display: none; }
+.game-preload { margin-top: 16px; }
+
+/* ---- Dashboard hero backdrop -------------------------------------------- */
+
+/* A random library game's wide hero art, set as the body background via the
+   inline --hero custom property, faded into --bg by a top-to-bottom scrim so
+   the dashboard content stays readable. Theme-aware (scrim is the theme's bg),
+   and gracefully no-ops to a plain background when --hero is unset. */
+body.page-hero {
+  background-image:
+    linear-gradient(to bottom, color-mix(in srgb, var(--bg) 70%, transparent) 0%, var(--bg) 68%),
+    var(--hero, none);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: top center;
+  background-attachment: fixed;
+}
+
+/* ---- Reduced motion ----------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::after { animation: none !important; transition: none !important; }
+}

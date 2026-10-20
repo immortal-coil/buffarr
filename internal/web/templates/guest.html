@@ -1,0 +1,72 @@
+{{define "guest.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Unmanaged cache - Buffarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{assetVer}}">
+  <script>(function(){try{var t=localStorage.getItem('df-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body>
+  {{template "nav" .}}
+  <div id="toast"></div>
+  <h1>Unmanaged cache</h1>
+  <p class="subtitle">Cached content not tracked as a full library game</p>
+
+  <div class="card">
+    <div class="card-title">Unmanaged content</div>
+    {{template "buffer_section" .}}
+  </div>
+  {{template "frame_close" .}}
+</body>
+</html>
+{{end}}
+
+{{define "buffer_section"}}
+    <p class="note">
+      Cached content that isn't tracked as a full library game, including games you
+      own. An entry appears here when it's a small or partial download below the
+      library size threshold (a game update, an interrupted install), or when its
+      depot couldn't be matched to a known game. Delete any entry individually to
+      reclaim its space. Unmatched entries show their raw depot ID.
+    </p>
+    {{if not .Entries}}
+      <p class="note">No unmanaged content found.</p>
+    {{else}}
+    <div style="margin-bottom: 14px;">
+      <button class="btn btn--sm btn--danger"
+              hx-post="/guest/purge-orphans"
+              hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+              hx-target="#guest-rows"
+              hx-swap="innerHTML"
+              hx-confirm="Clean up every entry below the minimum game size? Monitored and prefilled entries are kept regardless of size.">Clean up</button>
+    </div>
+    <table class="table">
+      <thead>
+        <tr><th data-sort="text">Name</th><th data-sort="text">Platform</th><th data-sort="num">Size</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="guest-rows">
+        {{template "guest_rows" .}}
+      </tbody>
+    </table>
+    {{end}}
+{{end}}
+
+{{define "guest_rows"}}{{range .Entries}}{{template "guest_row" .}}{{end}}{{end}}
+
+{{define "guest_row"}}
+<tr id="guest-{{.Platform}}-{{.GameKey}}">
+  <td>{{.Name}}</td>
+  <td>{{.Platform}}</td>
+  <td class="num" data-sort-value="{{.SizeBytes}}">{{humanBytes .SizeBytes}}</td>
+  <td>
+    <button class="btn btn--sm btn--danger"
+            hx-post="/guest/{{.Platform}}/{{.GameKey}}/purge"
+            hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'
+            hx-target="closest tr"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this entry from the cache?">Delete</button>
+  </td>
+</tr>
+{{end}}

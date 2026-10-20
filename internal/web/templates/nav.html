@@ -1,0 +1,140 @@
+{{define "nav"}}
+<header class="topbar">
+  <a class="brand" href="/"><img class="brand-logo" src="/static/logo.png" alt="" width="20" height="20" style="display:block;border-radius:5px">Buffarr</a>
+  <nav class="nav">
+    <a href="/">Dashboard</a>
+    <a href="/library">Library</a>
+    <a href="/prefill">Preload</a>
+    <a href="/settings">Settings</a>
+    <a href="/about">About</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="disk-chip" title="Cache disk used">Disk
+      <span class="disk-chip-track"><span class="disk-chip-fill" style="width: {{if .DiskKnown}}{{.DiskUsedPct}}{{else}}0{{end}}%"></span></span>
+      <span class="mono">{{if .DiskKnown}}{{.DiskUsedPct}}%{{else}}N/A{{end}}</span>
+    </span>
+    <button class="icon-btn" type="button" id="theme-btn">Theme</button>
+    <form method="post" action="/logout" style="margin:0">
+      <button type="submit" class="btn btn--sm">Log out</button>
+    </form>
+  </div>
+</header>
+{{if .EvictionPaused}}<div class="evict-banner">&#9208; Automatic eviction paused{{if .EvictionResumeText}} &middot; resumes {{.EvictionResumeText}}{{end}} &mdash; nothing is auto-deleted. <a href="/settings">Manage</a></div>{{end}}
+<main class="main">
+{{end}}
+
+{{define "frame_close"}}
+</main>
+<script>
+  // Auto-dismiss the action toast ~5s after it appears. The toast is server-
+  // rendered as an htmx out-of-band swap (#toast) with no built-in lifetime, so
+  // without this it sits until the next swap or a page reload. Removal is JS-
+  // timed on purpose: the global prefers-reduced-motion rule zeroes animation/
+  // transition durations, so a CSS-only auto-dismiss would either never fire or
+  // hide instantly -- here the timer always fires and the CSS opacity transition
+  // is the only motion (allowed to collapse under reduced-motion). The toast is
+  // the ONLY oob swap in the app, so htmx:oobAfterSwap fires exactly when a toast
+  // lands; the 3s #prefill-status poll uses a plain innerHTML swap and never
+  // triggers it, so it can't reset the countdown.
+  (function () {
+    var DISMISS_MS = 5000, FADE_MS = 400, timer;
+    function arm() {
+      var t = document.getElementById("toast");
+      if (!t || !t.classList.contains("toast") || t.textContent.trim() === "") return;
+      clearTimeout(timer);
+      t.classList.remove("toast--dismissing");
+      timer = setTimeout(function () {
+        var el = document.getElementById("toast");
+        if (!el) return;
+        el.classList.add("toast--dismissing");
+        setTimeout(function () {
+          var done = document.getElementById("toast");
+          if (done) { done.className = ""; done.textContent = ""; }
+        }, FADE_MS);
+      }, DISMISS_MS);
+    }
+    document.body.addEventListener("htmx:oobAfterSwap", arm);
+    arm(); // covers a toast already present on initial page load
+  })();
+
+  // Client-side column sort for any data table. A table opts in by marking
+  // sortable headers with data-sort="text|num"; a cell may carry a
+  // data-sort-value for a numeric key that differs from its display text -- the
+  // humanBytes disk-space column sorts on raw bytes, so "9 GiB" and "10 GiB"
+  // order correctly instead of lexically. Delegated off document so it also
+  // wires tables injected later by htmx (the Unmanaged cache arrives after page
+  // load via /guest/rows). Sorting an htmx-reloaded table resets to source
+  // order, which is acceptable for the transient buffer.
+  (function () {
+    function cellKey(row, index, type) {
+      var cell = row.children[index];
+      if (!cell) return type === "num" ? 0 : "";
+      if (type === "num") {
+        var dv = cell.getAttribute("data-sort-value");
+        var n = parseFloat(dv !== null ? dv : cell.textContent);
+        return isNaN(n) ? 0 : n;
+      }
+      return cell.textContent.trim().toLowerCase();
+    }
+    document.addEventListener("click", function (e) {
+      var th = e.target.closest ? e.target.closest("th[data-sort]") : null;
+      if (!th) return;
+      var table = th.closest("table.table");
+      if (!table || !table.tBodies.length) return;
+      var headerCells = Array.prototype.slice.call(th.parentNode.children);
+      var index = headerCells.indexOf(th);
+      var type = th.getAttribute("data-sort") || "text";
+      var asc = th.getAttribute("data-sort-dir") !== "asc";
+      headerCells.forEach(function (h) { h.removeAttribute("data-sort-dir"); });
+      th.setAttribute("data-sort-dir", asc ? "asc" : "desc");
+      var tbody = table.tBodies[0];
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function (a, b) {
+        var av = cellKey(a, index, type), bv = cellKey(b, index, type);
+        if (av < bv) return asc ? -1 : 1;
+        if (av > bv) return asc ? 1 : -1;
+        return 0;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    });
+  })();
+
+  // Mark the current page in the top nav. Done client-side so handlers don't
+  // each have to pass an "active page" flag.
+  (function () {
+    var path = location.pathname;
+    document.querySelectorAll(".nav a").forEach(function (a) {
+      var href = a.getAttribute("href");
+      var active = href === "/" ? path === "/" : path.indexOf(href) === 0;
+      if (active) a.classList.add("is-active");
+    });
+  })();
+
+  // Theme switcher. The chosen theme is applied to <html data-theme> before
+  // paint by a tiny inline script in each page <head> (no flash); this button
+  // cycles Slate -> Paper -> Amber and persists the choice in localStorage.
+  (function () {
+    var THEMES = [["slate", "Slate"], ["paper", "Paper"], ["amber", "Amber"]];
+    var btn = document.getElementById("theme-btn");
+    if (!btn) return;
+    function cur() { return document.documentElement.getAttribute("data-theme") || "slate"; }
+    function label(key) {
+      for (var i = 0; i < THEMES.length; i++) if (THEMES[i][0] === key) return THEMES[i][1];
+      return "Slate";
+    }
+    btn.textContent = "Theme: " + label(cur());
+    btn.addEventListener("click", function () {
+      var c = cur(), i = 0;
+      for (var j = 0; j < THEMES.length; j++) if (THEMES[j][0] === c) i = j;
+      var next = THEMES[(i + 1) % THEMES.length];
+      document.documentElement.setAttribute("data-theme", next[0]);
+      try { localStorage.setItem("df-theme", next[0]); } catch (e) {}
+      btn.textContent = "Theme: " + next[1];
+    });
+  })();
+</script>
+{{end}}
+
+{{define "toast"}}
+<div id="toast" hx-swap-oob="true" class="toast toast-{{.Level}}">{{.Message}}</div>
+{{end}}
